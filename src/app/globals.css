@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent-color: #4F46E5;
+}
+
+body {
+  color: #1f2937;
+  background-color: #f9fafb;
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+}
+
+/* Print Optimizations */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
+  header, nav, footer, .print\:hidden {
+    display: none !important;
+  }
+  
+  #cv-print-area {
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    transform: none !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* Custom Scrollbar for Form Panels */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+

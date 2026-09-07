@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String               @id @default(cuid())
+  email         String               @unique
+  password_hash String?
+  name          String?
+  cv_credits    Int                  @default(0)
+  created_at    DateTime             @default(now())
+  resumes       Resume[]
+  transactions  PaymentTransaction[]
+}
+
+model Resume {
+  id                     String          @id @default(cuid())
+  user_id                String
+  user                   User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  title                  String
+  photo_url              String?
+  template_id            String          @default("modern")
+  accent_color           String          @default("#4F46E5")
+  cover_letter_allowance Int             @default(0)
+  created_at             DateTime        @default(now())
+  updated_at             DateTime        @updatedAt
+  is_public              Boolean         @default(false)
+  slug                   String          @unique @default(cuid())
+  sections               ResumeSection[]
+  cover_letters          CoverLetter[]
+}
+
+model ResumeSection {
+  id          String   @id @default(cuid())
+  resume_id   String
+  resume      Resume   @relation(fields: [resume_id], references: [id], onDelete: Cascade)
+  type        String   // experience | education | skill | language | interest | custom
+  order_index Int      @default(0)
+  data        Json
+}
+
+model Template {
+  id            String   @id
+  name          String
+  thumbnail_url String
+  category      String
+}
+
+model CoverLetter {
+  id         String   @id @default(cuid())
+  resume_id  String
+  resume     Resume   @relation(fields: [resume_id], references: [id], onDelete: Cascade)
+  job_title  String
+  job_offer  String
+  content    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model PaymentTransaction {
+  id             String   @id @default(cuid())
+  transaction_id String   @unique
+  user_id        String
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plan           String   // demo | cv
+  amount         Int
+  status         String   // pending | completed | failed
+  created_at     DateTime @default(now())
+}
