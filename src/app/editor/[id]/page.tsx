@@ -46,6 +46,7 @@ import {
   LanguageItem,
   ResumeSectionData,
 } from "@/components/editor/ResumePreview";
+import { CoverLetterModal } from "@/components/editor/CoverLetterModal";
 
 const COLOR_OPTIONS = [
   { name: "Indigo", hex: "#4F46E5" },
@@ -92,6 +93,7 @@ export default function EditorPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [coverLetterModalOpen, setCoverLetterModalOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
@@ -291,8 +293,26 @@ export default function EditorPage() {
     if (!resumeId) return;
     try {
       setExportingPdf(true);
-      const res = await fetch(`/api/resumes/${resumeId}/export`, {
+
+      // 1. Déblocage atomique du crédit d'export avant la génération PDF
+      const unlockRes = await fetch(`/api/resumes/${resumeId}/unlock-export`, {
         method: "POST",
+      });
+
+      if (!unlockRes.ok) {
+        const errorData = await unlockRes.json().catch(() => ({}));
+        if (unlockRes.status === 402 || unlockRes.status === 403) {
+          if (confirm(errorData.error || "Crédits d'exportation insuffisants. Souhaitez-vous acheter un pass CV ?")) {
+            router.push("/pricing");
+          }
+          return;
+        }
+        throw new Error(errorData.error || "Erreur lors du déblocage de l'export");
+      }
+
+      // 2. Récupération du fichier PDF via GET /api/resumes/[id]/export
+      const res = await fetch(`/api/resumes/${resumeId}/export`, {
+        method: "GET",
       });
 
       if (!res.ok) {
@@ -632,6 +652,15 @@ export default function EditorPage() {
                 <span>Sauvegardé à {lastSaved}</span>
               </span>
             ) : null}
+
+            <button
+              onClick={() => setCoverLetterModalOpen(true)}
+              className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-violet-300 font-semibold px-4 py-2 rounded-xl text-sm transition-all border border-violet-500/30 shadow-md shadow-violet-500/10"
+              title="Générer et gérer les lettres de motivation IA"
+            >
+              <Sparkles className="w-4 h-4 text-violet-400" />
+              <span className="hidden sm:inline">Lettre IA</span>
+            </button>
 
             <button
               onClick={handleSave}
@@ -1754,6 +1783,12 @@ export default function EditorPage() {
           </div>
         </div>
       )}
+
+      <CoverLetterModal
+        resumeId={resumeId as string}
+        isOpen={coverLetterModalOpen}
+        onClose={() => setCoverLetterModalOpen(false)}
+      />
     </div>
   );
 }
