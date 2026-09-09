@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+export const dynamic = 'force-dynamic';
+
+
 const BUCKET_NAME = "resume-photos";
 
 // Magic Bytes Verification Helper

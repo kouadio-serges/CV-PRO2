@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { initiateCinetPayPayment } from "@/lib/cinetpay";
 
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyCinetPayStatus } from "@/lib/cinetpay";
 
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(req: Request) {
   try {
     let transactionId = "";

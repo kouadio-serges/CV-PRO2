@@ -4,6 +4,9 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
+
 const createResumeSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
   template_id: z.string().optional().default("modern"),
