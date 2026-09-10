@@ -1,19 +1,24 @@
-import { ProxyAgent } from "undici";
+import axios, { AxiosRequestConfig } from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
 
 const CINETPAY_BASE_URL = "https://api.cinetpay.net";
 
 /**
- * Returns a ProxyAgent from undici if QUOTAGUARDSTATIC_URL is defined.
+ * Returns Axios configuration with HttpsProxyAgent if QUOTAGUARDSTATIC_URL is defined.
  */
-function getProxyAgent(): ProxyAgent | undefined {
+function getAxiosConfig(): AxiosRequestConfig {
   let proxyUrl = (process.env.QUOTAGUARDSTATIC_URL || process.env.QUOTAGUARD_URL || "").trim();
   if (!proxyUrl) {
-    return undefined;
+    return {};
   }
   if (!proxyUrl.startsWith("http://") && !proxyUrl.startsWith("https://")) {
     proxyUrl = `http://${proxyUrl}`;
   }
-  return new ProxyAgent({ uri: proxyUrl });
+  const agent = new HttpsProxyAgent(proxyUrl);
+  return {
+    httpsAgent: agent,
+    proxy: false,
+  };
 }
 
 interface TokenCache {
@@ -40,27 +45,29 @@ export async function getCinetPayToken(): Promise<string> {
     return tokenCache.accessToken;
   }
 
-  const dispatcher = getProxyAgent();
-  const fetchOptions: RequestInit & { dispatcher?: any } = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      api_key: apiKey,
-      api_password: apiPassword,
-    }),
-    ...(dispatcher ? { dispatcher } : {}),
-  };
+  const axiosConfig = getAxiosConfig();
 
-  const response = await fetch(`${CINETPAY_BASE_URL}/v1/oauth/login`, fetchOptions);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Échec de l'authentification CinetPay: ${response.status} - ${errorText}`);
+  let response;
+  try {
+    response = await axios.post(
+      `${CINETPAY_BASE_URL}/v1/oauth/login`,
+      {
+        api_key: apiKey,
+        api_password: apiPassword,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        ...axiosConfig,
+      }
+    );
+  } catch (err: any) {
+    const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    throw new Error(`Échec de l'authentification CinetPay: ${err.response?.status || 500} - ${errorMsg}`);
   }
 
-  const data = await response.json();
+  const data = response.data;
   const token = data.access_token || data.data?.access_token || data.token;
   const expiresIn = data.expires_in || data.data?.expires_in || 3600;
 
@@ -115,31 +122,31 @@ export async function initiateCinetPayPayment(
     notify_url: params.notify_url,
   };
 
-  const dispatcher = getProxyAgent();
-  const fetchOptions: RequestInit & { dispatcher?: any } = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-    ...(dispatcher ? { dispatcher } : {}),
-  };
+  const axiosConfig = getAxiosConfig();
 
-  const response = await fetch(`${CINETPAY_BASE_URL}/v1/payment`, fetchOptions);
+  let response;
+  try {
+    response = await axios.post(`${CINETPAY_BASE_URL}/v1/payment`, body, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      ...axiosConfig,
+    });
+  } catch (err: any) {
+    const errorData = err.response?.data;
+    const status = err.response?.status;
+    console.error("CinetPay payment initiation error:", status, errorData || err.message);
+    const message = errorData?.message || errorData?.error || errorData?.description || err.message || `Erreur d'initialisation du paiement CinetPay (${status})`;
+    throw new Error(message);
+  }
 
-  const resData = await response.json();
+  const resData = response.data;
 
   console.log("=== CINETPAY PAYMENT RESPONSE DEBUG ===");
   console.log("HTTP Status:", response.status);
   console.log("JSON Body:", JSON.stringify(resData, null, 2));
   console.log("=======================================");
-
-  if (!response.ok) {
-    throw new Error(
-      resData.message || resData.error || `Erreur d'initialisation du paiement CinetPay (${response.status})`
-    );
-  }
 
   const paymentUrl =
     resData.payment_url || resData.data?.payment_url || resData.url || resData.data?.url;
@@ -168,18 +175,24 @@ export async function verifyCinetPayStatus(
 ): Promise<VerifyPaymentResult> {
   const token = await getCinetPayToken();
 
-  const dispatcher = getProxyAgent();
-  const fetchOptions: RequestInit & { dispatcher?: any } = {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    ...(dispatcher ? { dispatcher } : {}),
-  };
+  const axiosConfig = getAxiosConfig();
 
-  const response = await fetch(`${CINETPAY_BASE_URL}/v1/payment/${encodeURIComponent(transactionId)}`, fetchOptions);
-
-  const resData = await response.json().catch(() => ({}));
+  let resData: any = {};
+  try {
+    const response = await axios.get(
+      `${CINETPAY_BASE_URL}/v1/payment/${encodeURIComponent(transactionId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        ...axiosConfig,
+      }
+    );
+    resData = response.data || {};
+  } catch (err: any) {
+    console.error("CinetPay status verification error:", err.response?.status, err.response?.data || err.message);
+    resData = err.response?.data || {};
+  }
 
   // Extract status from API verification response safely
   const status = (
