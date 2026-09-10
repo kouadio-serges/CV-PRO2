@@ -1,14 +1,21 @@
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { ProxyAgent as UndiciProxyAgent } from "undici";
 
 const CINETPAY_BASE_URL = "https://api.cinetpay.net";
 
 /**
- * Returns an HttpsProxyAgent if QUOTAGUARDSTATIC_URL is defined, or undefined otherwise.
+ * Returns proxy agent options (agent for http/https, dispatcher for undici/native fetch)
+ * if QUOTAGUARDSTATIC_URL is defined.
  */
-function getProxyAgent(): HttpsProxyAgent<string> | undefined {
+function getProxyConfig(): { agent?: any; dispatcher?: any } {
   const proxyUrl = process.env.QUOTAGUARDSTATIC_URL;
-  if (!proxyUrl) return undefined;
-  return new HttpsProxyAgent(proxyUrl);
+  if (!proxyUrl) {
+    return {};
+  }
+  return {
+    agent: new HttpsProxyAgent(proxyUrl),
+    dispatcher: new UndiciProxyAgent(proxyUrl),
+  };
 }
 
 interface TokenCache {
@@ -35,8 +42,8 @@ export async function getCinetPayToken(): Promise<string> {
     return tokenCache.accessToken;
   }
 
-  const agent = getProxyAgent();
-  const fetchOptions: RequestInit & { agent?: any } = {
+  const proxyConfig = getProxyConfig();
+  const fetchOptions: RequestInit & { agent?: any; dispatcher?: any } = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -45,7 +52,7 @@ export async function getCinetPayToken(): Promise<string> {
       api_key: apiKey,
       api_password: apiPassword,
     }),
-    ...(agent ? { agent } : {}),
+    ...proxyConfig,
   };
 
   const response = await fetch(`${CINETPAY_BASE_URL}/v1/oauth/login`, fetchOptions);
@@ -110,15 +117,15 @@ export async function initiateCinetPayPayment(
     notify_url: params.notify_url,
   };
 
-  const agent = getProxyAgent();
-  const fetchOptions: RequestInit & { agent?: any } = {
+  const proxyConfig = getProxyConfig();
+  const fetchOptions: RequestInit & { agent?: any; dispatcher?: any } = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
-    ...(agent ? { agent } : {}),
+    ...proxyConfig,
   };
 
   const response = await fetch(`${CINETPAY_BASE_URL}/v1/payment`, fetchOptions);
@@ -163,13 +170,13 @@ export async function verifyCinetPayStatus(
 ): Promise<VerifyPaymentResult> {
   const token = await getCinetPayToken();
 
-  const agent = getProxyAgent();
-  const fetchOptions: RequestInit & { agent?: any } = {
+  const proxyConfig = getProxyConfig();
+  const fetchOptions: RequestInit & { agent?: any; dispatcher?: any } = {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    ...(agent ? { agent } : {}),
+    ...proxyConfig,
   };
 
   const response = await fetch(`${CINETPAY_BASE_URL}/v1/payment/${encodeURIComponent(transactionId)}`, fetchOptions);
