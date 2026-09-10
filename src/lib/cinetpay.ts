@@ -8,13 +8,16 @@ const CINETPAY_BASE_URL = "https://api.cinetpay.net";
  * if QUOTAGUARDSTATIC_URL is defined.
  */
 function getProxyConfig(): { agent?: any; dispatcher?: any } {
-  const proxyUrl = process.env.QUOTAGUARDSTATIC_URL;
+  let proxyUrl = (process.env.QUOTAGUARDSTATIC_URL || process.env.QUOTAGUARD_URL || "").trim();
   if (!proxyUrl) {
     return {};
   }
+  if (!proxyUrl.startsWith("http://") && !proxyUrl.startsWith("https://")) {
+    proxyUrl = `http://${proxyUrl}`;
+  }
   return {
     agent: new HttpsProxyAgent(proxyUrl),
-    dispatcher: new UndiciProxyAgent(proxyUrl),
+    dispatcher: new UndiciProxyAgent({ uri: proxyUrl }),
   };
 }
 
